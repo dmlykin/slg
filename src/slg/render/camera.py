@@ -31,19 +31,22 @@ class SideProjection:
 
     def __init__(self, bounds: tuple[float, float, float, float],
                  screen_size: tuple[int, int] = (SCREEN_W, SCREEN_H),
-                 smooth: float = 6.0) -> None:
+                 smooth: float = 6.0, vertical_bias: float = -60.0) -> None:
         self.bounds = bounds
         self.screen_w, self.screen_h = screen_size
         self.smooth = smooth
+        self.vertical_bias = vertical_bias
         left, top, width, height = bounds
         self._cam_x = left + width / 2.0
         self._cam_y = top + height / 2.0
         self._look_ahead = 0.0
 
-    def update(self, dt: float, target_x: float, target_y: float, facing: int) -> None:
+    def update(self, dt: float, target_x: float, target_y: float, facing: int,
+               target_vy: float = 0.0) -> None:
         self._look_ahead += (facing * 90.0 - self._look_ahead) * min(1.0, 2.0 * dt)
         desired_x = target_x + self._look_ahead
-        desired_y = target_y - 60.0
+        lead = max(-80.0, min(160.0, target_vy * 0.10))
+        desired_y = target_y + self.vertical_bias + lead
         k = min(1.0, self.smooth * dt)
         self._cam_x += (desired_x - self._cam_x) * k
         self._cam_y += (desired_y - self._cam_y) * k
@@ -51,7 +54,7 @@ class SideProjection:
 
     def snap_to(self, x: float, y: float) -> None:
         self._cam_x = x
-        self._cam_y = y - 60.0
+        self._cam_y = y + self.vertical_bias
         self._look_ahead = 0.0
         self._clamp()
 
@@ -82,6 +85,10 @@ class SideProjection:
     def parallax_offset(self, factor: float) -> int:
         """Pixel offset for a background layer moving at `factor` of camera speed."""
         return int(round(self._cam_x * factor))
+
+    def parallax_offset_y(self, factor: float) -> int:
+        """Vertical counterpart for descending levels."""
+        return int(round(self._cam_y * factor))
 
 
 class TopDownProjection:

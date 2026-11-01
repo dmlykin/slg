@@ -17,11 +17,13 @@ from slg.core.world import Entity, World
 
 
 class Boss:
-    def __init__(self, entity: Entity, cfg: Config, bus: EventBus) -> None:
-        b: BossConfig = cfg.boss
+    def __init__(self, entity: Entity, cfg: Config, bus: EventBus,
+                 boss_cfg: BossConfig | None = None, kind: str = "boss") -> None:
+        b: BossConfig = boss_cfg if boss_cfg is not None else cfg.boss
         entity.hp = entity.max_hp = b.max_hp
         entity.width, entity.height = b.width, b.height
-        entity.kind = "boss"
+        entity.kind = kind
+        self.kind = kind
         self.entity = entity
         self.cfg = cfg
         self.bus = bus
@@ -70,6 +72,15 @@ class Boss:
             self.state_timer = 0.0
             self.bus.publish("boss_activated")
 
+    def enrage(self) -> None:
+        """A twin lost its partner: force phase 2 and roar."""
+        if not self.entity.alive or self.state in ("dormant", "dead"):
+            return
+        self.phase = 2
+        self.state = "roar"
+        self.state_timer = 0.0
+        self.bus.publish("boss_phase", phase=2)
+
     # ------------------------------------------------------------------ helpers
 
     def _telegraph_mult(self) -> float:
@@ -80,6 +91,11 @@ class Boss:
 
     def _pick_pattern(self, dist: float) -> str:
         b = self.b
+        if self.kind == "prism":
+            # ranged twin: fans of shards, a sweep only as a close-range panic
+            return "sweep" if dist < b.slam_range * 0.55 else "volley"
+        if self.kind == "blade":
+            return self._rng.choice(("slam", "sweep"))
         if dist > b.sweep_range:
             return "volley"
         if dist < b.slam_range * 0.6:
@@ -91,6 +107,10 @@ class Boss:
         p_left, p_top, p_w, p_h = player.entity.aabb()
         if aabb_overlap(left, top, w, h, p_left, p_top, p_w, p_h):
             player.take_hit(damage, knockback, self.entity)
+
+    def _sense_target(self, player) -> float:
+        """Where the boss aims this tick; blind bosses override this."""
+        return player.entity.x
 
     # ------------------------------------------------------------------ update
 
@@ -110,7 +130,7 @@ class Boss:
             self._physics(dt, world)
             return
 
-        px = player.entity.x
+        px = self._sense_target(player)
         dist = abs(px - e.x)
         e.facing = 1 if px >= e.x else -1
 
@@ -127,8 +147,15 @@ class Boss:
                 self.state = "idle"
                 self.state_timer = 0.0
         elif self.state == "idle":
-            # drift toward the player between patterns
-            if dist > b.slam_range * 0.8:
+            if b.keep_max > 0.0:
+                # ranged twin: hold a distance band (dash in / back off)
+                if dist < b.keep_min:
+                    e.vx = -e.facing * b.move_speed * self._speed_mult()
+                elif dist > b.keep_max:
+                    e.vx = e.facing * b.move_speed * self._speed_mult()
+                else:
+                    e.vx *= 0.8
+            elif dist > b.slam_range * 0.8:
                 e.vx = e.facing * b.move_speed * self._speed_mult()
             else:
                 e.vx *= 0.8

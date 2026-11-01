@@ -1,0 +1,20 @@
+{
+  "name": "Снятие Тягот",
+  "theme": "sanctum",
+  "bounds": [0, -600, 1600, 1600],
+  "player_spawn": [140, 590],
+  "platforms": [
+    { "x": 0, "y": 620, "w": 1600, "h": 260 },
+    { "x": 0, "y": 500, "w": 120, "h": 120 },
+    { "x": 1480, "y": 500, "w": 120, "h": 120 }
+  ],
+  "figure": {
+    "x": 800,
+    "y": 620,
+    "faces": [
+      { "type": "turner", "x": 640, "y": 520, "target": "swamp", "requires": null },
+      { "type": "warden", "x": 800, "y": 520, "target": "glass", "requires": "swamp" },
+      { "type": "herald", "x": 960, "y": 520, "target": "well", "requires": "glass" }
+    ]
+  }
+}

@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from slg.core.level import LevelSpec
 from slg.core.player import InputIntents
 from slg.core.session import Session

@@ -18,6 +18,9 @@
   "checkpoints": [
     { "x": 2450, "y": 560, "radius": 80, "name": "heart_01" }
   ],
+  "portals": [
+    { "x": 260, "y": 592, "radius": 70, "name": "back_01", "target": "hub" }
+  ],
   "enemies": [
     { "type": "crawler", "x": 500, "y": 605 },
     { "type": "crawler", "x": 1350, "y": 605 },

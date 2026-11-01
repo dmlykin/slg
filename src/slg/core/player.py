@@ -46,6 +46,10 @@ class Player:
         self.heal_timer = 0.0
         self.coyote_timer = 0.0
         self._jump_cut_done = False
+        # noise for blind hunters
+        self.noise_timer = 1e9
+        self.last_noise_pos = (entity.x, entity.y)
+        self.noise_pulse = 0.0
 
     # ------------------------------------------------------------------ helpers
 
@@ -65,6 +69,29 @@ class Player:
     def _enter(self, state: str) -> None:
         self.state = state
         self.state_timer = 0.0
+
+    def _is_noisy(self, intents: InputIntents) -> bool:
+        """Running, rolling, attacking and taking off make noise; standing still is silent."""
+        if self.state == "dead":
+            return False
+        if intents.move != 0 or self.state in ("roll", "attack_l", "attack_h"):
+            return True
+        if intents.jump_pressed:
+            return True
+        # `jump` is also the falling label: only the upward launch is loud,
+        # so walking off a ledge without input stays silent
+        return self.state == "jump" and self.entity.vy < 0.0
+
+    def _update_noise(self, dt: float, intents: InputIntents) -> None:
+        if self._is_noisy(intents):
+            self.noise_timer = 0.0
+            self.last_noise_pos = (self.entity.x, self.entity.y)
+            self.noise_pulse += dt
+            if self.noise_pulse >= 0.35:
+                self.noise_pulse -= 0.35
+        else:
+            self.noise_timer += dt
+            self.noise_pulse = 0.0
 
     # ------------------------------------------------------------------ damage
 
@@ -99,6 +126,7 @@ class Player:
         self.state_timer += dt
         self.stamina.update(dt)
         self.damageable.update(dt)
+        self._update_noise(dt, intents)
 
         if self.state == "dead":
             e.vx = 0.0
@@ -248,4 +276,7 @@ class Player:
         self.heal_charges = self.cfg.player.heal_charges
         self.attack = AttackState()
         self.damageable.iframes_timer = 0.0
+        self.noise_timer = 1e9
+        self.last_noise_pos = (x, y)
+        self.noise_pulse = 0.0
         self._enter("idle")

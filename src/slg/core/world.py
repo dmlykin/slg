@@ -57,7 +57,7 @@ class Entity:
         """(left, top, width, height)"""
         return (self.left, self.top, self.width, self.height)
 
-    def distance_to(self, other: "Entity") -> float:
+    def distance_to(self, other: Entity) -> float:
         return abs(self.x - other.x)
 
 
@@ -70,6 +70,7 @@ class Platform:
     width: float
     height: float
     organic: bool = True
+    sharp: bool = False
 
     @property
     def left(self) -> float:
@@ -113,6 +114,37 @@ class Trigger:
     width: float
     height: float
     name: str = "trigger"
+
+
+@dataclass(frozen=True)
+class Portal:
+    """Return gate to the hub. x, y = center, like Checkpoint."""
+
+    x: float
+    y: float
+    radius: float = 70.0
+    name: str = "portal"
+    target: str = "hub"
+
+
+@dataclass(frozen=True)
+class FaceSpawn:
+    """One face of the hub figure: an interaction zone bound to a level key."""
+
+    type: str           # "turner" | "warden" | "herald"
+    x: float
+    y: float
+    target: str         # level key the face travels to
+    requires: str | None = None   # level key that must be defeated first
+
+
+@dataclass(frozen=True)
+class Figure:
+    """The Three-Faced figure at the hub center; faces are its interaction zones."""
+
+    x: float
+    y: float
+    faces: list[FaceSpawn] = field(default_factory=list)
 
 
 @dataclass

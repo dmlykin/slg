@@ -15,6 +15,8 @@ EventHandler = Callable[..., None]
 #   "entity_damaged"      (entity, amount, source)
 #   "entity_died"         (entity)
 #   "telegraph"           (entity, kind, duration)
+#   "sharp_hit"           (entity, x, y)
+#   "orb_shattered"       (x, y)
 #   "attack_hit"          (attacker, victim, x, y)
 #   "attack_missed"       (attacker, x, y)
 #   "roll"                (entity)
@@ -26,6 +28,7 @@ EventHandler = Callable[..., None]
 #   "boss_phase"          (phase)
 #   "victory"             ()
 #   "projectile_spawned"  (projectile)
+#   "travel"              (target)
 
 
 class EventBus:

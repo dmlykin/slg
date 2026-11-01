@@ -68,6 +68,35 @@ def move_and_collide(entity: Entity, world: World, dt: float) -> None:
         entity.vy = 0.0
 
 
+SHARP_SIDE_WIDTH = 7.0
+SHARP_SIDE_INSET = 5.0
+
+
+def touching_sharp_side(entity: Entity,
+                       platforms: list[Platform]) -> tuple[Platform, int] | None:
+    """Touching a vertical face of a sharp platform?
+
+    Only a thin strip on each side face is hazardous; the top edge and the
+    area above it stay safe. Returns (platform, side) where side is -1 when
+    the entity is left of the platform and +1 when it is right of it.
+    """
+    for p in platforms:
+        if not p.sharp:
+            continue
+        strip_top = p.top + SHARP_SIDE_INSET
+        strip_h = p.height - SHARP_SIDE_INSET * 2.0
+        if strip_h <= 0.0:
+            continue
+        if aabb_overlap(entity.left, entity.top, entity.width, entity.height,
+                        p.left - SHARP_SIDE_WIDTH, strip_top,
+                        SHARP_SIDE_WIDTH, strip_h):
+            return (p, -1)
+        if aabb_overlap(entity.left, entity.top, entity.width, entity.height,
+                        p.right, strip_top, SHARP_SIDE_WIDTH, strip_h):
+            return (p, 1)
+    return None
+
+
 def apply_gravity(entity: Entity, cfg: PhysicsConfig, dt: float) -> None:
     entity.vy += cfg.gravity * dt
     if entity.vy > cfg.max_fall_speed:

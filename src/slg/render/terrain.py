@@ -1,17 +1,17 @@
-"""Platforms as organic, noise-distorted growths — not rectangles.
+"""Platforms as organic growths or cut glass — not rectangles.
 
-Each platform is baked once into a Surface with noisy edges, rot patches,
-a pale rim and hanging strands; per-frame it's a single blit.
+Each platform is baked once into a Surface. Organic platforms get noisy edges,
+rot patches, a pale rim and hanging strands; glass platforms get faceted,
+angular silhouettes and blinding glints. Per-frame it's a single blit.
 """
 
 from __future__ import annotations
 
-
 import numpy as np
 import pygame
 
-from slg.render.palette import PALETTE
 from slg.core.world import Platform
+from slg.render.palette import PALETTE
 
 _PAD = 28
 
@@ -33,6 +33,8 @@ class TerrainRenderer:
         ]
 
     def _bake_platform(self, p: Platform) -> tuple[pygame.Surface, tuple[int, int]]:
+        if not p.organic:
+            return self._bake_glass(p)
         rng = self._rng
         w = int(p.width) + _PAD * 2
         h = int(p.height) + _PAD
@@ -103,11 +105,86 @@ class TerrainRenderer:
 
         return surf, (int(p.x) - _PAD, int(p.y) - _PAD)
 
+    def _bake_glass(self, p: Platform) -> tuple[pygame.Surface, tuple[int, int]]:
+        """Faceted, angular slab of fused sand. No moss, no strands."""
+        rng = self._rng
+        w = int(p.width) + _PAD * 2
+        h = int(p.height) + _PAD
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        top = _PAD
+        bottom = _PAD + p.height
+        left = _PAD
+        right = _PAD + p.width
+
+        # --- angular outline: near-flat walkable top, slanted facets below ---
+        steps = max(3, int(p.width // 80) + 3)
+        top_pts: list[tuple[float, float]] = []
+        for i in range(steps):
+            t = i / (steps - 1)
+            jag = 0.0 if i % 2 == 0 else -2.0
+            top_pts.append((left + t * p.width, top + jag))
+        outline: list[tuple[float, float]] = list(top_pts)
+        facets = 3
+        for i in range(1, facets + 1):
+            t = i / facets
+            x = right - p.width * 0.06 * (facets - i) * 0.4
+            y = top + p.height * t
+            outline.append((x, y))
+        for i in range(facets - 1, 0, -1):
+            t = i / facets
+            x = left + p.width * 0.05 * (facets - i) * 0.4
+            y = top + p.height * t
+            outline.append((x, y))
+
+        body = [(int(x), int(y)) for x, y in outline]
+        pygame.draw.polygon(surf, PALETTE["terrain"], body)
+
+        # --- internal fracture lines (cold, faint) ---
+        cracks = max(1, int(p.width * p.height / 60000))
+        for _ in range(cracks):
+            x0 = left + float(rng.random()) * p.width
+            y0 = top + 8.0 + float(rng.random()) * max(6.0, p.height * 0.6)
+            length = 12.0 + float(rng.random()) * 22.0
+            pygame.draw.line(surf, PALETTE["layer_mid"],
+                             (int(x0), int(y0)),
+                             (int(min(right - 2, x0 + length)), int(y0 + length * 0.7)), 1)
+
+        # --- diagonal glints (light caught inside the glass) ---
+        glints = max(2, int(p.width // 90))
+        for i in range(glints):
+            x0 = left + (i + 0.5) / glints * p.width
+            y0 = top + 7.0 + float(rng.random()) * max(4.0, p.height * 0.25)
+            ln = 8.0 + float(rng.random()) * 10.0
+            pygame.draw.line(surf, PALETTE["bone"],
+                             (int(x0), int(y0)), (int(x0 + ln * 0.6), int(y0 + ln)), 1)
+
+        # --- blinding crystal rim along the walkable top ---
+        rim_pts = [(int(x), int(y + 1)) for x, y in top_pts]
+        pygame.draw.lines(surf, PALETTE["terrain_rim"], False, rim_pts, 3)
+        pygame.draw.lines(surf, PALETTE["spore"], False, rim_pts, 1)
+
+        # --- sharp faces read as danger: bright vertical cut edges ---
+        if p.sharp:
+            y0 = top + 6
+            y1 = bottom - 6
+            pygame.draw.line(surf, PALETTE["spore"], (left + 1, y0), (left + 1, y1), 3)
+            pygame.draw.line(surf, PALETTE["spore"], (right - 1, y0), (right - 1, y1), 3)
+            pygame.draw.line(surf, PALETTE["terrain_rim"], (left + 3, y0), (left + 3, y1), 1)
+            pygame.draw.line(surf, PALETTE["terrain_rim"], (right - 3, y0), (right - 3, y1), 1)
+
+        return surf, (int(p.x) - _PAD, int(p.y) - _PAD)
+
     def draw(self, surface: pygame.Surface, world_platforms: list[Platform],
-             to_screen) -> None:
-        """Blit baked platforms; draw any dynamic platform (boss gate) raw."""
+             to_screen, skip: set[int] | None = None) -> None:
+        """Blit baked platforms; draw any dynamic platform (boss gate) raw.
+
+        `skip` optionally hides baked platforms by index (used by the level
+        editor while a platform is being dragged).
+        """
         baked_ids = {id(p) for p, _s, _o in self._baked}
-        for p, surf, origin in self._baked:
+        for index, (p, surf, origin) in enumerate(self._baked):
+            if skip and index in skip:
+                continue
             sx, sy = to_screen(origin[0], origin[1], 0.0)
             surface.blit(surf, (sx, sy))
         for p in world_platforms:

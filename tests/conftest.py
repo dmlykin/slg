@@ -29,6 +29,7 @@ def make_spec(**overrides) -> LevelSpec:
         "boss_gate": {"x": 1240, "y": -50, "width": 30, "height": 250},
     }
     data.update(overrides)
+    data = {k: v for k, v in data.items() if v is not None}
     return LevelSpec.from_dict(data)
 
 

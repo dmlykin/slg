@@ -86,6 +86,15 @@ class Particles:
                       self._rng.uniform(0.3, 0.6), PALETTE["telegraph"],
                       self._rng.randint(1, 2))
 
+    def spark_burst(self, x: float, y: float) -> None:
+        """Glass splinters flying off a cut edge."""
+        for _ in range(12):
+            ang = self._rng.uniform(0, math.tau)
+            speed = self._rng.uniform(80, 320)
+            self._add(x, y, math.cos(ang) * speed, math.sin(ang) * speed - 70,
+                      self._rng.uniform(0.15, 0.45), PALETTE["bone"],
+                      self._rng.randint(1, 2), gravity=760.0)
+
     # ------------------------------------------------------------------ update
 
     def update(self, dt: float, cam_x: float, cam_y: float) -> None:

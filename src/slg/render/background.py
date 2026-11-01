@@ -6,6 +6,8 @@ level load; per-frame work is only a couple of blits.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import numpy as np
 import pygame
 
@@ -80,7 +82,7 @@ def _bake_layer(width: int, height: int, color: tuple[int, int, int],
 class Background:
     """3-4 baked parallax layers + a vertical sky gradient + drifting fog band."""
 
-    LAYERS = (
+    LAYERS: ClassVar[tuple] = (
         # (parallax factor, color key, threshold, base_freq, ridge, bottom_bias)
         (0.08, "layer_far", 0.56, 90, False, 0.55),
         (0.20, "layer_mid", 0.58, 70, True, 0.35),
@@ -88,18 +90,83 @@ class Background:
         (0.62, "layer_nearest", 0.62, 40, False, 0.10),
     )
 
+    # Glass: ridged noise everywhere turns the growths into thin shard peaks.
+    THEME_LAYERS: ClassVar[dict] = {
+        "glass": (
+            (0.08, "layer_far", 0.66, 120, True, 0.60),
+            (0.20, "layer_mid", 0.68, 96, True, 0.52),
+            (0.38, "layer_near", 0.70, 76, True, 0.46),
+            (0.62, "layer_nearest", 0.71, 58, True, 0.40),
+        ),
+        # The sanctum: calm, hanging veil-like masses drifting toward the top.
+        "sanctum": (
+            (0.08, "layer_far", 0.62, 70, False, -0.22),
+            (0.20, "layer_mid", 0.64, 55, True, -0.12),
+            (0.38, "layer_near", 0.66, 44, True, -0.05),
+            (0.62, "layer_nearest", 0.68, 34, False, 0.06),
+        ),
+    }
+
+    # Vertical levels (a well shaft): horizontal rock strata instead of
+    # horizon silhouettes; each is tiled vertically with its own parallax.
+    VERTICAL_LAYERS: ClassVar[tuple] = (
+        (0.10, "layer_far"),
+        (0.22, "layer_mid"),
+        (0.40, "layer_near"),
+        (0.62, "layer_nearest"),
+    )
+
     def __init__(self, bounds: tuple[float, float, float, float],
-                 rng_seed: int = 1337) -> None:
+                 rng_seed: int = 1337, theme: str = "swamp",
+                 vertical: bool = False) -> None:
         rng = np.random.default_rng(rng_seed)
-        left, _top, width, _h = bounds
+        _left, _top, width, _h = bounds
+        self.vertical = vertical
         self._sky = self._bake_sky()
         self._layers: list[tuple[float, pygame.Surface, int]] = []
-        for factor, color_key, threshold, freq, ridge, bias in self.LAYERS:
+        self._vertical_layers: list[tuple[float, pygame.Surface]] = []
+        if vertical:
+            # Do not bake the whole shaft: a single screen-sized strata tile
+            # per layer is tiled vertically with parallax.
+            for factor, color_key in self.VERTICAL_LAYERS:
+                surf = self._bake_vertical_layer(PALETTE[color_key], rng)
+                self._vertical_layers.append((factor, surf))
+            return
+        layers = self.THEME_LAYERS.get(theme, self.LAYERS)
+        for factor, color_key, threshold, freq, ridge, bias in layers:
             # wide enough to cover the whole camera range at this parallax
             layer_w = int(factor * (width - SCREEN_W / 2.0)) + SCREEN_W + 64
             surf = _bake_layer(layer_w, SCREEN_H, PALETTE[color_key], rng,
                                threshold, freq, ridge, bias)
             self._layers.append((factor, surf, layer_w))
+
+    @staticmethod
+    def _bake_vertical_layer(color: tuple[int, int, int],
+                             rng: np.random.Generator) -> pygame.Surface:
+        """One tile of horizontal rock strata, seamless top-to-bottom."""
+        surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        bands: list[tuple[int, int]] = []
+        y = 0
+        while y < SCREEN_H:
+            h = int(rng.integers(18, 110))
+            bands.append((y, h))
+            y += h + int(rng.integers(10, 70))
+        rim = tuple(min(255, int(c * 1.5) + 10) for c in color)
+        for y, h in bands:
+            alpha = int(rng.integers(150, 220))
+            for yy in (y - SCREEN_H, y, y + SCREEN_H):
+                pygame.draw.rect(surf, (*color, alpha), (0, yy, SCREEN_W, h))
+                pygame.draw.line(surf, (*rim, min(255, alpha + 20)),
+                                 (0, yy), (SCREEN_W, yy), 2)
+        # ragged vertical cracks that also wrap
+        for _ in range(14):
+            x = int(rng.integers(0, SCREEN_W))
+            y0 = int(rng.integers(0, SCREEN_H))
+            ln = int(rng.integers(30, 150))
+            dx = int(rng.integers(-16, 16))
+            for yy in (y0 - SCREEN_H, y0, y0 + SCREEN_H):
+                pygame.draw.line(surf, (*color, 80), (x, yy), (x + dx, yy + ln), 2)
+        return surf
 
     @staticmethod
     def _bake_sky() -> pygame.Surface:
@@ -113,6 +180,13 @@ class Background:
 
     def draw(self, surface: pygame.Surface, projection: SideProjection) -> None:
         surface.blit(self._sky, (0, 0))
+        if self.vertical:
+            for factor, layer in self._vertical_layers:
+                offset = -projection.parallax_offset_y(factor)
+                y = offset % SCREEN_H
+                surface.blit(layer, (0, y))
+                surface.blit(layer, (0, y - SCREEN_H))
+            return
         for factor, layer, layer_w in self._layers:
             offset = -projection.parallax_offset(factor)
             # tile horizontally if a layer is narrower than the screen
