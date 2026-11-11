@@ -52,4 +52,7 @@ def test_env_path_override(tmp_path, monkeypatch):
 def test_to_dict_is_sorted_and_from_dict_tolerant():
     progress = Progress.from_dict({"defeated": ["well", "swamp", 42]})
     assert progress.defeated == {"well", "swamp"}
-    assert progress.to_dict() == {"defeated": ["swamp", "well"]}
+    assert progress.to_dict() == {"defeated": ["swamp", "well"], "substance": 0.0,
+                                  "deposited": 0.0}
+    assert Progress.from_dict({"defeated": [], "substance": 5.0}).deposited == 0.0
+    assert Progress.from_dict({"deposited": "много"}).deposited == 0.0

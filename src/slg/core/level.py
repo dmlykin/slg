@@ -23,6 +23,15 @@ class BossSpawn:
     type: str = "boss"   # "boss" | "blade" | "prism" | "keeper"
 
 
+@dataclass(frozen=True)
+class Relief:
+    """Density-relief basin at the hub figure's feet. x, y = center, like Portal."""
+
+    x: float
+    y: float
+    radius: float = 50.0
+
+
 def _rect(d: dict) -> dict:
     """Normalize w/h <-> width/height keys in rect-ish JSON nodes."""
     out = dict(d)
@@ -50,6 +59,7 @@ class LevelSpec:
     boss_gate: Platform | None = None
     portals: list[Portal] = field(default_factory=list)
     figure: Figure | None = None
+    relief: Relief | None = None
 
     @staticmethod
     def from_dict(data: dict) -> LevelSpec:
@@ -90,6 +100,10 @@ class LevelSpec:
                     for f in data["figure"].get("faces", [])
                 ],
             ) if "figure" in data else None,
+            relief=Relief(
+                data["relief"]["x"], data["relief"]["y"],
+                data["relief"].get("radius", 50.0),
+            ) if "relief" in data else None,
         )
 
     @staticmethod

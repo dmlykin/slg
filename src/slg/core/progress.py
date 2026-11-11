@@ -25,9 +25,15 @@ def default_progress_path() -> Path:
 
 @dataclass(frozen=True)
 class Progress:
-    """Immutable set of defeated level keys ("swamp" / "glass" / "well")."""
+    """Defeated level keys ("swamp" / "glass" / "well") + carried substance.
+
+    `deposited` is the substance relieved at the hub figure: it grows
+    monotonically and is never given back.
+    """
 
     defeated: frozenset[str] = field(default_factory=frozenset)
+    substance: float = 0.0
+    deposited: float = 0.0
 
     def is_defeated(self, key: str) -> bool:
         return key in self.defeated
@@ -36,17 +42,34 @@ class Progress:
         """Idempotently add a defeated key; returns the new Progress."""
         if key in self.defeated:
             return self
-        return Progress(self.defeated | {key})
+        return Progress(self.defeated | {key}, self.substance, self.deposited)
+
+    def with_substance(self, amount: float) -> "Progress":
+        """Return a copy carrying the given substance (clamped >= 0)."""
+        return Progress(self.defeated, max(0.0, amount), self.deposited)
+
+    def with_deposit(self, amount: float) -> "Progress":
+        """Return a copy with the relieved amount added to the deposit."""
+        return Progress(self.defeated, self.substance,
+                        self.deposited + max(0.0, amount))
 
     def to_dict(self) -> dict:
-        return {"defeated": sorted(self.defeated)}
+        return {"defeated": sorted(self.defeated), "substance": self.substance,
+                "deposited": self.deposited}
 
     @staticmethod
     def from_dict(data: dict) -> "Progress":
         raw = data.get("defeated") if isinstance(data, dict) else None
         if not isinstance(raw, list):
             raw = []
-        return Progress(frozenset(k for k in raw if isinstance(k, str)))
+        substance = data.get("substance", 0.0) if isinstance(data, dict) else 0.0
+        if isinstance(substance, bool) or not isinstance(substance, (int, float)):
+            substance = 0.0
+        deposited = data.get("deposited", 0.0) if isinstance(data, dict) else 0.0
+        if isinstance(deposited, bool) or not isinstance(deposited, (int, float)):
+            deposited = 0.0
+        return Progress(frozenset(k for k in raw if isinstance(k, str)),
+                        float(substance), float(deposited))
 
     @staticmethod
     def load(path: str | Path | None = None) -> "Progress":

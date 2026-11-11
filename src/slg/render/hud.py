@@ -44,10 +44,14 @@ class Hud:
                   PALETTE["blood"], PALETTE["ui_dim"])
         self._bar(surface, (24, 44), (240, 10),
                   player.stamina.value / player.stamina.max, PALETTE["stamina"], PALETTE["ui_dim"])
+        if player.substance > 0:
+            self._bar(surface, (24, 58), (200, 8),
+                      player.substance / player.cfg.density.max_substance,
+                      PALETTE["density"], PALETTE["ui_dim"])
         # flask charges: small diamonds
         for i in range(player.cfg.player.heal_charges):
             x = 30 + i * 20
-            y = 66
+            y = 80
             has = i < player.heal_charges
             color = PALETTE["heal_glow"] if has else (40, 44, 34)
             pts = [(x, y - 6), (x + 5, y), (x, y + 6), (x - 5, y)]

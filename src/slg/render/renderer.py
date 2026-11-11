@@ -17,6 +17,7 @@ from slg.render.characters import (
     draw_player,
     draw_portal,
     draw_projectile,
+    draw_relief,
     draw_shard,
     draw_spitter,
 )
@@ -34,6 +35,7 @@ FACE_PROMPTS = {
 LOCKED_PROMPT = "Лик спит"
 PORTAL_PROMPT = "E — вернуться к трёхликой"
 CHECKPOINT_PROMPT = "E — коснуться сердца"
+RELIEF_CONFIRM_PROMPT = "E ещё раз — подтвердить. Снятое не вернуть."
 
 
 class Renderer:
@@ -149,6 +151,9 @@ class Renderer:
                             to_screen, session.world.time)
         for portal in session.spec.portals:
             draw_portal(surface, portal, to_screen, session.world.time)
+        if session.spec.relief is not None:
+            draw_relief(surface, session.spec.relief, session.relief_armed,
+                        to_screen, session.world.time)
         if session.spec.figure is not None:
             states = [session.face_state(face) for face in session.spec.figure.faces]
             draw_figure(surface, session.spec.figure, states, to_screen,
@@ -204,7 +209,7 @@ class Renderer:
             self.hud.pause_overlay(surface)
 
     def _prompt_text(self) -> str | None:
-        """One prompt at a time: portal, then figure face, then checkpoint."""
+        """One prompt at a time: portal, figure face, relief, checkpoint."""
         if self._near_portal():
             return PORTAL_PROMPT
         face = self._near_face()
@@ -212,6 +217,12 @@ class Renderer:
             if self.session.face_state(face) == "available":
                 return FACE_PROMPTS.get(face.type, "E — ступить")
             return LOCKED_PROMPT
+        if self._near_relief() is not None and self.session.player.substance > 0:
+            if self.session.relief_armed:
+                return RELIEF_CONFIRM_PROMPT
+            step = min(self.session.cfg.density.relief_step,
+                       self.session.player.substance)
+            return f"E — оставить {step:.0f} у Жрицы"
         if self._checkpoint_near:
             return CHECKPOINT_PROMPT
         return None
@@ -244,4 +255,13 @@ class Renderer:
         for face in figure.faces:
             if within_reach(e.x, e.y, face.x, face.y, radius):
                 return face
+        return None
+
+    def _near_relief(self):
+        relief = self.session.spec.relief
+        e = self.session.player.entity
+        if relief is None or self.session.player.state == "dead":
+            return None
+        if within_reach(e.x, e.y, relief.x, relief.y, relief.radius):
+            return relief
         return None

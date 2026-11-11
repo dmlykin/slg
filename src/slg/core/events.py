@@ -22,6 +22,8 @@ EventHandler = Callable[..., None]
 #   "roll"                (entity)
 #   "jump"                (entity)
 #   "heal"                (entity, amount)
+#   "substance_gained"    (amount, substance, density)
+#   "substance_relieved"  (amount)
 #   "checkpoint"          (checkpoint)
 #   "respawn"             ()
 #   "boss_activated"      ()

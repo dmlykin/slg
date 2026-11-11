@@ -37,6 +37,7 @@ class Boss:
         self.phase = 1
         self._struck = False
         self._volley_fired = 0
+        self._mirror_p = 0.0
         self._rng = random.Random()
 
     # ------------------------------------------------------------------ damage
@@ -72,6 +73,19 @@ class Boss:
             self.state_timer = 0.0
             self.bus.publish("boss_activated")
 
+    def apply_mirror(self, p: float) -> None:
+        """Become a reflection of the player's density (p = density_norm).
+
+        Called once right before `activate()`: the boss is dormant and full,
+        so scaling at activation equals scaling at spawn. A heavier player
+        (p -> 1) gets sturdier twins, a lighter one (p -> 0) faster twins.
+        """
+        self._mirror_p = max(0.0, min(1.0, p))
+        if self.b.mirror_hp_bonus > 0.0:
+            e = self.entity
+            e.max_hp = round(e.max_hp * (1.0 + self.b.mirror_hp_bonus * self._mirror_p))
+            e.hp = e.max_hp
+
     def enrage(self) -> None:
         """A twin lost its partner: force phase 2 and roar."""
         if not self.entity.alive or self.state in ("dormant", "dead"):
@@ -84,10 +98,15 @@ class Boss:
     # ------------------------------------------------------------------ helpers
 
     def _telegraph_mult(self) -> float:
-        return self.b.phase2_telegraph_mult if self.phase == 2 else 1.0
+        m = self.b.phase2_telegraph_mult if self.phase == 2 else 1.0
+        return m * (1.0 - self.b.mirror_telegraph_cut * (1.0 - self._mirror_p))
 
     def _speed_mult(self) -> float:
-        return self.b.phase2_speed_mult if self.phase == 2 else 1.0
+        m = self.b.phase2_speed_mult if self.phase == 2 else 1.0
+        return m * (1.0 + self.b.mirror_speed_bonus * (1.0 - self._mirror_p))
+
+    def _mirror_damage(self, base: int) -> int:
+        return round(base * (1.0 + self.b.mirror_damage_bonus * self._mirror_p))
 
     def _pick_pattern(self, dist: float) -> str:
         b = self.b
@@ -211,7 +230,7 @@ class Boss:
                     player,
                     e.x - b.slam_range, e.y - b.height * 0.8,
                     b.slam_range * 2.0, b.height * 1.1,
-                    b.slam_damage, 420.0,
+                    self._mirror_damage(b.slam_damage), 420.0,
                 )
             if self.state_timer >= b.slam_active:
                 self.state = "recover"
@@ -225,7 +244,7 @@ class Boss:
                     player,
                     left, e.y - b.height * 0.7,
                     b.sweep_range, b.height * 1.0,
-                    b.sweep_damage, 340.0,
+                    self._mirror_damage(b.sweep_damage), 340.0,
                 )
             if self.state_timer >= b.sweep_active:
                 self.state = "recover"
@@ -257,7 +276,7 @@ class Boss:
         vy = dy / t - 0.5 * self.cfg.physics.gravity * t
         spawn_projectile(Projectile(
             x=e.x + e.facing * e.half_w * 0.6, y=e.y - e.half_h * 0.6,
-            vx=vx, vy=vy, radius=10.0, damage=b.volley_damage,
+            vx=vx, vy=vy, radius=10.0, damage=self._mirror_damage(b.volley_damage),
         ))
 
     def _physics(self, dt: float, world: World) -> None:

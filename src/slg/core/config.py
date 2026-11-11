@@ -81,6 +81,22 @@ class CombatConfig:
 
 
 @dataclass(frozen=True)
+class DensityConfig:
+    """Substance of the old world absorbed by the player.
+
+    `substance` grows with each kill, caps at `max_substance`; density is
+    `1 + density_per_substance * substance` and never resets on death.
+    """
+
+    max_substance: float = 200.0
+    density_per_substance: float = 0.005  # density = 1 + 0.005 * substance
+    hp_bonus_max: float = 0.35            # max_hp = base * (1 + 0.35 * p)
+    damage_bonus_max: float = 0.15        # player damage * (1 + 0.15 * p)
+    hearing_scale: float = 0.5            # hearing window * density ** 0.5
+    relief_step: float = 50.0             # one confirmed act at the Priestess
+
+
+@dataclass(frozen=True)
 class CrawlerConfig:
     """Melee enemy: patrol -> aggro -> telegraph -> strike -> recover."""
 
@@ -100,6 +116,7 @@ class CrawlerConfig:
     poise: float = 40.0
     poise_regen: float = 20.0
     stagger_time: float = 0.9
+    substance_yield: float = 8.0
     width: float = 46.0
     height: float = 30.0
 
@@ -122,6 +139,7 @@ class SpitterConfig:
     poise: float = 25.0
     poise_regen: float = 20.0
     stagger_time: float = 0.8
+    substance_yield: float = 10.0
     width: float = 38.0
     height: float = 40.0
 
@@ -144,6 +162,7 @@ class ShardConfig:
     poise: float = 30.0
     poise_regen: float = 20.0
     stagger_time: float = 0.7
+    substance_yield: float = 12.0
     width: float = 34.0
     height: float = 44.0
 
@@ -204,6 +223,11 @@ class BossConfig:
     # distance band kept during idle (0 = close in like the level 01 boss)
     keep_min: float = 0.0
     keep_max: float = 0.0
+    # mirror of the player's density applied at arena activation (p = density_norm)
+    mirror_damage_bonus: float = 0.0     # damage * (1 + bonus * p)
+    mirror_hp_bonus: float = 0.0         # max_hp * (1 + bonus * p)
+    mirror_speed_bonus: float = 0.0      # speed * (1 + bonus * (1 - p))
+    mirror_telegraph_cut: float = 0.0    # telegraph * (1 - cut * (1 - p))
 
 
 @dataclass(frozen=True)
@@ -271,7 +295,10 @@ class Config:
     spitter: SpitterConfig = field(default_factory=SpitterConfig)
     shard: ShardConfig = field(default_factory=ShardConfig)
     orb: OrbConfig = field(default_factory=OrbConfig)
-    boss: BossConfig = field(default_factory=BossConfig)
+    density: DensityConfig = field(default_factory=DensityConfig)
+    boss: BossConfig = field(default_factory=lambda: BossConfig(
+        mirror_damage_bonus=0.5,
+    ))
     blade: BossConfig = field(default_factory=lambda: BossConfig(
         max_hp=260,
         move_speed=190.0,
@@ -292,6 +319,9 @@ class Config:
         volley_count=3,
         volley_damage=9,
         idle_between_patterns=0.32,
+        mirror_hp_bonus=0.35,
+        mirror_speed_bonus=0.30,
+        mirror_telegraph_cut=0.20,
     ))
     prism: BossConfig = field(default_factory=lambda: BossConfig(
         max_hp=170,
@@ -319,6 +349,9 @@ class Config:
         idle_between_patterns=0.50,
         keep_min=250.0,
         keep_max=470.0,
+        mirror_hp_bonus=0.35,
+        mirror_speed_bonus=0.30,
+        mirror_telegraph_cut=0.20,
     ))
     keeper: KeeperConfig = field(default_factory=KeeperConfig)
     hub: HubConfig = field(default_factory=HubConfig)

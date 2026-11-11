@@ -99,10 +99,18 @@ def main(argv: list[str] | None = None) -> int:
 
         def on_victory() -> None:
             nonlocal progress
-            progress = progress.mark_defeated(key)
+            progress = (progress.mark_defeated(key)
+                        .with_substance(session.player.substance))
             progress.save()
 
         session.bus.subscribe("victory", on_victory)
+
+        def on_substance_relieved(amount: float) -> None:
+            nonlocal progress
+            progress = progress.with_deposit(amount)
+            progress.save()
+
+        session.bus.subscribe("substance_relieved", on_substance_relieved)
 
     session, renderer, audio = load_level(level_index, progress)
     wire(session, LEVEL_KEYS[level_index])
@@ -156,6 +164,9 @@ def main(argv: list[str] | None = None) -> int:
         travel_requests.clear()
 
         if switch_to is not None and switch_to != level_index:
+            # the anchor carries over: portal, defeat and post-victory travel
+            progress = progress.with_substance(session.player.substance)
+            progress.save()
             level_index = switch_to
             session, renderer, audio = load_level(level_index, progress)
             wire(session, LEVEL_KEYS[level_index])

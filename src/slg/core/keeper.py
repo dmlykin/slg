@@ -75,7 +75,9 @@ class KeeperBoss(Boss):
         if self.state in ("telegraph", "active"):
             # keep the target fixed: the player must be able to walk away from the noise
             return self.attack_target
-        if player.entity.alive and player.noise_timer <= self.b.hearing_memory:
+        if player.entity.alive and player.noise_timer <= (
+            self.b.hearing_memory * player.hearing_mult
+        ):
             self.silent = False
             self.target_pos = player.last_noise_pos[0]
         else:
@@ -167,7 +169,8 @@ class KeeperBoss(Boss):
         if not e.alive or player.state == "dead" or not e.on_ground:
             return
         if abs(e.x - self.attack_target) <= self.b.slam_range:
-            player.take_hit(self.b.slam_damage, 360.0, self.entity)
+            player.take_hit(self._mirror_damage(self.b.slam_damage), 360.0,
+                            self.entity)
 
     def _update_echo(self, dt: float, player) -> None:
         b = self.b
@@ -176,7 +179,8 @@ class KeeperBoss(Boss):
             e = player.entity
             if (e.alive and player.state != "dead" and e.on_ground
                     and abs(abs(e.x - self.entity.x) - self.echo_radius) <= b.echo_thickness
-                    and player.take_hit(b.sweep_damage, 320.0, self.entity)):
+                    and player.take_hit(self._mirror_damage(b.sweep_damage), 320.0,
+                                         self.entity)):
                 self.echo_hit = True
         if self.echo_radius >= b.sweep_range:
             self._to_recover()
@@ -230,7 +234,8 @@ class KeeperBoss(Boss):
                 self.shock_zones.remove(zone)
                 continue
             if (zone.cooldown <= 0.0 and self._zone_hits(player, zone)
-                    and player.take_hit(b.volley_damage, 260.0, self.entity)):
+                    and player.take_hit(self._mirror_damage(b.volley_damage),
+                                        260.0, self.entity)):
                 zone.cooldown = b.zone_hit_cooldown
 
     @staticmethod

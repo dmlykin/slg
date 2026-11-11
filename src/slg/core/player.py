@@ -50,6 +50,56 @@ class Player:
         self.noise_timer = 1e9
         self.last_noise_pos = (entity.x, entity.y)
         self.noise_pulse = 0.0
+        # density of being: substance of the old world, kept through death
+        self.substance = 0.0
+
+    # ------------------------------------------------------------------ density
+
+    @property
+    def density(self) -> float:
+        d = self.cfg.density
+        return 1.0 + d.density_per_substance * self.substance
+
+    @property
+    def density_norm(self) -> float:
+        """Normalized density p in 0..1 (substance / max_substance)."""
+        return max(0.0, min(1.0, self.substance / self.cfg.density.max_substance))
+
+    @property
+    def damage_mult(self) -> float:
+        return 1.0 + self.cfg.density.damage_bonus_max * self.density_norm
+
+    @property
+    def hearing_mult(self) -> float:
+        return self.density ** self.cfg.density.hearing_scale
+
+    def gain_substance(self, amount: float) -> None:
+        """Absorb substance from a kill; capped, rescales HP, never on death."""
+        cap = self.cfg.density.max_substance
+        new = min(cap, self.substance + max(0.0, amount))
+        if new <= self.substance:
+            return
+        self.substance = new
+        self._rescale_hp()
+        self.bus.publish("substance_gained", amount=amount,
+                         substance=self.substance, density=self.density)
+
+    def set_substance(self, amount: float) -> None:
+        """Seed substance from saved progress (no event)."""
+        cap = self.cfg.density.max_substance
+        self.substance = max(0.0, min(cap, amount))
+        self._rescale_hp()
+
+    def _rescale_hp(self) -> None:
+        """Grow max_hp with density; gaining mass never hurts, shrinking clamps."""
+        d = self.cfg.density
+        new_max = round(self.cfg.player.max_hp * (1.0 + d.hp_bonus_max * self.density_norm))
+        e = self.entity
+        if new_max > e.max_hp:
+            e.hp += new_max - e.max_hp
+        elif new_max < e.max_hp:
+            e.hp = min(e.hp, new_max)
+        e.max_hp = new_max
 
     # ------------------------------------------------------------------ helpers
 

@@ -16,5 +16,6 @@
       { "type": "warden", "x": 800, "y": 520, "target": "glass", "requires": "swamp" },
       { "type": "herald", "x": 960, "y": 520, "target": "well", "requires": "glass" }
     ]
-  }
+  },
+  "relief": { "x": 500, "y": 620, "radius": 50 }
 }

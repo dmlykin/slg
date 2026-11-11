@@ -880,6 +880,27 @@ def draw_portal(surface: pygame.Surface, portal, to_screen, time: float) -> None
     _shadow(surface, (x, base), 30)
 
 
+def draw_relief(surface: pygame.Surface, relief, armed: bool, to_screen,
+                time: float) -> None:
+    """A low basin at the figure's feet: density set down here stays down."""
+    x, y = to_screen(relief.x, relief.y, 0.0)
+    r = int(relief.radius)
+    color = PALETTE["spore"]
+    pulse = 0.5 + 0.5 * math.sin(time * (3.4 if armed else 1.3))
+    rect = (x - r, y - r // 2, r * 2, r)
+    # stone bowl sunk into the ground
+    pygame.draw.ellipse(surface, PALETTE["silhouette"], rect)
+    pygame.draw.ellipse(surface, PALETTE["rim"], rect, 2)
+    # ember glow pooling inside
+    pool = pygame.Surface((r * 2 + 4, r + 8), pygame.SRCALPHA)
+    pygame.draw.ellipse(pool, (*color, int(55 + 85 * pulse)),
+                        (2, 2, r * 2, r))
+    surface.blit(pool, (x - r - 2, y - r // 2 - 2))
+    _glow(surface, (x, y - 4), int(4 + pulse * 6), color, 120)
+    if armed:
+        pygame.draw.ellipse(surface, color, rect, 2)
+
+
 def draw_figure(surface: pygame.Surface, figure, face_states, to_screen,
                 time: float) -> None:
     """The Three-Faced: a tall robed figure whose faces are doors to the levels.

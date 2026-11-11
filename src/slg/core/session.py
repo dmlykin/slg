@@ -57,6 +57,8 @@ class Session:
             self.world.spawn(x=self.spec.player_spawn[0], y=self.spec.player_spawn[1]),
             self.cfg, self.bus,
         )
+        if self.progress.substance > 0:
+            self.player.set_substance(self.progress.substance)
         self.enemies: list[Enemy] = []
         self.bosses: list[Boss] = []
         self.projectiles: list[Projectile] = []
@@ -69,6 +71,7 @@ class Session:
         self.boss_defeated = False
         self.boss_gate_active = False
         self.finale_dismissed = False
+        self.relief_armed = False
 
         self.bus.subscribe("projectile_spawned", self._on_projectile_spawned)
         self.bus.subscribe("entity_died", self._on_entity_died)
@@ -150,8 +153,18 @@ class Session:
     def _publish_projectile(self, projectile: Projectile) -> None:
         self.bus.publish("projectile_spawned", projectile=projectile)
 
+    _SUBSTANCE_KINDS = ("crawler", "spitter", "shard")
+
     def _on_entity_died(self, entity: Entity) -> None:
-        """When one twin falls, the survivor enrages."""
+        """Dead mobs yield substance; when one twin falls, the survivor enrages."""
+        if entity.kind in self._SUBSTANCE_KINDS:
+            section = {
+                "crawler": self.cfg.crawler,
+                "spitter": self.cfg.spitter,
+                "shard": self.cfg.shard,
+            }[entity.kind]
+            self.player.gain_substance(section.substance_yield)
+            return
         if entity.kind not in ("blade", "prism"):
             return
         for boss in self.bosses:
@@ -192,6 +205,7 @@ class Session:
         if self.victory:
             return
         self.world.step_time(dt)
+        self._update_relief_state()
 
         # death sequencing: fade delay handled by render via death_timer
         if self.player.state == "dead":
@@ -244,7 +258,7 @@ class Session:
 
     def _check_interactions(self, intents: InputIntents) -> None:
         """One E press does at most one thing, in a strict priority order:
-        finale dismissal -> portal -> figure face -> checkpoint."""
+        finale dismissal -> portal -> figure face -> relief -> checkpoint."""
         if not intents.interact_pressed:
             return
         e = self.player.entity
@@ -264,7 +278,33 @@ class Session:
                 if self.face_state(face) == "available":
                     self.bus.publish("travel", target=face.target)
                 return
+        relief = self.spec.relief
+        if (relief is not None
+                and within_reach(e.x, e.y, relief.x, relief.y, relief.radius)
+                and self.player.substance > 0):
+            # first E arms, second E confirms one step; empty hands fall through
+            if not self.relief_armed:
+                self.relief_armed = True
+                return
+            step = min(self.cfg.density.relief_step, self.player.substance)
+            self.player.set_substance(self.player.substance - step)
+            self.bus.publish("substance_relieved", amount=step)
+            self.relief_armed = False
+            return
         self._check_checkpoint()
+
+    def _update_relief_state(self) -> None:
+        """Disarm the pending relief act when the player leaves the zone.
+
+        Runs every tick regardless of input: `_check_interactions` early-exits
+        without `interact_pressed`, so a disarm check in there would never fire.
+        """
+        relief = self.spec.relief
+        if relief is None or not self.relief_armed:
+            return
+        e = self.player.entity
+        if not within_reach(e.x, e.y, relief.x, relief.y, relief.radius):
+            self.relief_armed = False
 
     def _restore_resources(self) -> None:
         self.player.entity.hp = self.player.entity.max_hp
@@ -295,6 +335,7 @@ class Session:
         if aabb_overlap(e.left, e.top, e.width, e.height,
                         trig.x, trig.y, trig.width, trig.height):
             for boss in self.bosses:
+                boss.apply_mirror(self.player.density_norm)
                 boss.activate()
             self._set_boss_gate(True)
 
@@ -315,7 +356,8 @@ class Session:
                 continue
             if attack_hitbox_hits(self.player.entity, attack, entity):
                 self._swing_hits.add(entity.id)
-                landed = controller.take_hit(a.damage, a.stagger_damage, a.knockback,
+                damage = max(1, round(a.damage * self.player.damage_mult))
+                landed = controller.take_hit(damage, a.stagger_damage, a.knockback,
                                              self.player.entity)
                 if landed:
                     publish_hit(self.bus, self.player.entity, entity, a)
